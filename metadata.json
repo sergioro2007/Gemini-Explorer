@@ -1,0 +1,7 @@
+{
+  "name": "Gemini Capabilities Explorer",
+  "description": "An interactive showcase of Google's Gemini API features including Thinking models, Grounding (Search/Maps), Vision, TTS, and Veo Video generation.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
