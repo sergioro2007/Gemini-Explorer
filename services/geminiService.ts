@@ -3,7 +3,7 @@ import { GoogleGenAI, Modality, Type } from "@google/genai";
 import { GroundingMetadata, ModelType } from "../types";
 
 // Initialize API Client
-// Note: API key is injected via process.env.API_KEY
+// Note: API key is injected via process.env.API_KEY via Vite define
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 /**
@@ -114,7 +114,7 @@ export const generateChatMessage = async (
 
     return { text, grounding };
 
-  } catch (error) {
+  } catch (error: any) {
     throw parseGeminiError(error);
   }
 };
@@ -140,7 +140,7 @@ export const generateSpeech = async (text: string, voiceName: string = 'Kore'): 
     const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
     if (!base64Audio) throw new Error("No audio data returned");
     return base64Audio;
-  } catch (error) {
+  } catch (error: any) {
     throw parseGeminiError(error);
   }
 };
@@ -160,7 +160,7 @@ export const generateImage = async (prompt: string): Promise<string> => {
             }
         });
         return response.generatedImages[0].image.imageBytes;
-    } catch (e) {
+    } catch (e: any) {
         throw parseGeminiError(e);
     }
 }
@@ -177,7 +177,7 @@ export const analyzeImage = async (base64Image: string, prompt: string): Promise
             }
         });
         return response.text || "No analysis returned.";
-    } catch (e) {
+    } catch (e: any) {
         throw parseGeminiError(e);
     }
 }
@@ -219,7 +219,8 @@ const attemptVeoGeneration = async (model: string, prompt: string, imageBase64?:
         }
     }
     
-    let operation = await veoAi.models.generateVideos(payload);
+    // Explicitly type operation as any to avoid 'unknown' assignment issues during polling
+    let operation: any = await veoAi.models.generateVideos(payload);
 
     // Polling loop
     let pollCount = 0;
@@ -236,7 +237,7 @@ const attemptVeoGeneration = async (model: string, prompt: string, imageBase64?:
         
         try {
             operation = await veoAi.operations.getVideosOperation({ operation: operation });
-        } catch (pollError) {
+        } catch (pollError: any) {
             console.warn("Transient polling error:", pollError);
         }
     }
@@ -248,8 +249,8 @@ const attemptVeoGeneration = async (model: string, prompt: string, imageBase64?:
     const videoUri = operation.response?.generatedVideos?.[0]?.video?.uri;
     if (!videoUri) throw new Error("No video URI found in response");
 
-    // Strategy 1: Fetch via Header (Most Robust)
-    // This avoids putting the API key in the URL and handles special chars better
+    // Secure Fetch: Retrieve video bytes using API Key in Header
+    // We strictly use blob creation to hide the key from the video element source
     try {
         const response = await fetch(videoUri, {
             headers: {
@@ -259,21 +260,16 @@ const attemptVeoGeneration = async (model: string, prompt: string, imageBase64?:
         
         if (!response.ok) {
              console.warn(`Header fetch failed: ${response.status} ${response.statusText}`);
-             // Throw to trigger fallback to URL method
-             throw new Error("Header fetch failed");
+             throw new Error(`Failed to download video safely (Status: ${response.status})`);
         }
         
         const arrayBuffer = await response.arrayBuffer();
         const blob = new Blob([arrayBuffer], { type: 'video/mp4' });
         return URL.createObjectURL(blob);
-    } catch (e) {
-        console.warn("Secure header fetch failed, falling back to signed URL parameter.", e);
-        
-        // Strategy 2: URL Parameter (Fallback)
-        // Must STRICTLY encode the API key to prevent "API Key Invalid" errors
-        const separator = videoUri.includes('?') ? '&' : '?';
-        const signedUrl = `${videoUri}${separator}key=${encodeURIComponent(apiKey)}`;
-        return signedUrl;
+    } catch (e: any) {
+        // We DO NOT fallback to signed URL parameters here to prevent API Key exposure in the DOM/URL.
+        console.error("Secure video retrieval failed.", e);
+        throw e;
     }
 };
 
@@ -338,7 +334,7 @@ export const generateVideo = async (prompt: string, durationPreference: '5s' | '
         const imageBytes = await generateImage(finalPrompt + ", cinematic, photorealistic, 8k, video frame");
         const imageUrl = `data:image/jpeg;base64,${imageBytes}`;
         return { url: imageUrl, contentType: 'image/jpeg', isFallback: true, modelUsed: 'Imagen 3 (Fallback)' };
-    } catch (error) {
+    } catch (error: any) {
         throw new Error("All generation attempts failed (Video & Image quotas exceeded).");
     }
 }
