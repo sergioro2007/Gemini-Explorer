@@ -1,7 +1,6 @@
-
 import React, { useState, useEffect } from 'react';
 import { View } from './types';
-import { MessageSquare, Eye, Mic, Video as VideoIcon, LayoutGrid, LogOut } from 'lucide-react';
+import { MessageSquare, Eye, Mic, Video as VideoIcon, LayoutGrid, LogOut, Home } from 'lucide-react';
 import { ChatView } from './views/ChatView';
 import { VisionView } from './views/VisionView';
 import { SpeechView } from './views/SpeechView';
@@ -21,24 +20,19 @@ const App: React.FC = () => {
     const hostname = window.location.hostname;
     const port = window.location.port;
 
-    console.log("Current Hostname:", hostname, "Port:", port);
-
-    // Broader detection for AI Studio / IDX / Cloud Shell / Localhost
-    // !hostname checks for empty string, which handles the specific AI Studio preview case
     const isDevEnv = 
         !hostname || 
         hostname === 'localhost' || 
         hostname === '127.0.0.1' ||
         hostname.includes('idx.google') ||
-        hostname.includes('-idx-') || // Common in IDX previews
+        hostname.includes('-idx-') || 
         hostname.includes('cloudshell') ||
         hostname.includes('googleusercontent.com') || 
         hostname.includes('applicationpub.cloud.google.com') ||
-        hostname.endsWith('.goog') || // Internal Google domains
-        port === '8080'; // Explicit 8080 usually implies a container preview, not prod
+        hostname.endsWith('.goog') || 
+        port === '8080';
 
     if (isDevEnv) {
-        console.log("Development Environment Detected: Bypassing Authentication.");
         setUser({
             uid: 'dev-user',
             email: 'developer@preview.env',
@@ -48,50 +42,86 @@ const App: React.FC = () => {
         setIsDevBypass(true);
         setLoading(false);
     } else {
-        // Production: Enforce Firebase Auth
         const unsubscribe = subscribeToAuthChanges((u) => {
             setUser(u);
             setLoading(false);
         });
-        return () => unsubscribe();
+
+        const safetyTimeout = setTimeout(() => {
+            setLoading((currentLoading) => {
+                if (currentLoading) {
+                    return false;
+                }
+                return currentLoading;
+            });
+        }, 1500);
+
+        return () => {
+            unsubscribe();
+            clearTimeout(safetyTimeout);
+        };
     }
   }, []);
 
-  // Loading Screen
   if (loading) {
     return (
-        <div className="h-screen w-screen bg-slate-950 flex items-center justify-center">
+        <div className="h-[100dvh] w-screen bg-slate-950 flex items-center justify-center">
              <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
         </div>
     );
   }
 
-  // Auth Gate: Not Logged In
   if (!user) {
     return <LoginView />;
   }
 
-  // Main App (Authorized)
-  const NavItem = ({ view, icon: Icon, label }: { view: View; icon: any; label: string }) => (
+  const NavItem = ({ view, icon: Icon, label, mobile = false }: { view: View; icon: any; label: string, mobile?: boolean }) => (
     <button
       onClick={() => setActiveView(view)}
-      className={`flex items-center gap-3 w-full p-3 rounded-xl transition-all duration-200 group ${
-        activeView === view 
-          ? 'bg-slate-800 text-white shadow-lg border border-slate-700/50' 
-          : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200'
-      }`}
+      className={mobile 
+        ? `flex flex-col items-center justify-center gap-0.5 p-1 rounded-xl transition-all w-full active:scale-95 ${activeView === view ? 'text-blue-500' : 'text-slate-500'}`
+        : `flex items-center gap-3 w-full p-3 rounded-xl transition-all duration-200 group ${activeView === view ? 'bg-slate-800 text-white shadow-lg border border-slate-700/50' : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200'}`
+      }
     >
-      <div className={`p-2 rounded-lg ${activeView === view ? 'bg-blue-600' : 'bg-slate-800 group-hover:bg-slate-700'}`}>
-        <Icon size={20} />
+      <div className={mobile ? '' : `p-2 rounded-lg ${activeView === view ? 'bg-blue-600' : 'bg-slate-800 group-hover:bg-slate-700'}`}>
+        <Icon size={mobile ? 18 : 20} strokeWidth={mobile && activeView === view ? 2.5 : 2} />
       </div>
-      <span className="font-medium">{label}</span>
+      <span className={mobile ? "text-[9px] font-medium tracking-tight" : "font-medium"}>{label}</span>
     </button>
   );
 
   return (
-    <div className="flex h-screen bg-slate-950 text-slate-200">
-      {/* Sidebar */}
-      <div className="w-64 flex flex-col border-r border-slate-800 bg-slate-950 p-4">
+    <div className="flex flex-col md:flex-row h-[100dvh] bg-slate-950 text-slate-200 overflow-hidden">
+      
+      {/* MOBILE HEADER - FIXED TOP */}
+      {/* Height is fixed h-12 (3rem) plus the safe area top padding */}
+      <div className="md:hidden fixed top-0 left-0 right-0 bg-slate-950/90 backdrop-blur-md border-b border-slate-800 z-50 pt-safe transition-all duration-200">
+          <div className="h-12 flex items-center justify-between px-4">
+              <div className="flex items-center gap-2" onClick={() => setActiveView(View.HOME)}>
+                <div className="w-6 h-6 bg-gradient-to-tr from-blue-500 to-purple-600 rounded-md flex items-center justify-center shadow-lg shadow-blue-900/20">
+                    <LayoutGrid size={14} className="text-white" />
+                </div>
+                <span className="font-bold text-white tracking-tight text-sm">Gemini Explorer</span>
+              </div>
+              <div className="flex items-center gap-3">
+                  <div className="w-7 h-7 rounded-full bg-slate-800 flex items-center justify-center text-[10px] font-bold text-slate-400 overflow-hidden border border-slate-700">
+                        {user.photoURL ? (
+                            <img src={user.photoURL} alt="User" className="w-full h-full object-cover" />
+                        ) : (
+                            user.displayName?.[0]?.toUpperCase() || 'D'
+                        )}
+                  </div>
+                  {!isDevBypass && (
+                      <button onClick={() => signOut()} className="text-slate-400 hover:text-white active:scale-90 transition-transform">
+                          <LogOut size={16} />
+                      </button>
+                  )}
+              </div>
+          </div>
+      </div>
+
+      {/* DESKTOP SIDEBAR */}
+      <div className="hidden md:flex w-64 flex-col border-r border-slate-800 bg-slate-950 p-4 shrink-0 z-40">
         <button 
           onClick={() => setActiveView(View.HOME)}
           className="flex items-center gap-3 px-2 mb-8 mt-2 group hover:opacity-80 transition-opacity text-left"
@@ -105,7 +135,8 @@ const App: React.FC = () => {
             </div>
         </button>
 
-        <nav className="space-y-2 flex-1">
+        <nav className="space-y-1 flex-1">
+            <NavItem view={View.HOME} icon={Home} label="Home" />
             <NavItem view={View.CHAT} icon={MessageSquare} label="Chat & Think" />
             <NavItem view={View.VISION} icon={Eye} label="Vision Studio" />
             <NavItem view={View.SPEECH} icon={Mic} label="Speech Lab" />
@@ -113,11 +144,6 @@ const App: React.FC = () => {
         </nav>
 
         <div className="border-t border-slate-800 pt-4 mt-4 space-y-4">
-             {isDevBypass && (
-                 <div className="px-2 py-1 bg-yellow-900/20 border border-yellow-700/50 rounded text-yellow-500 text-xs text-center font-mono mb-2">
-                     PREVIEW MODE ENABLED
-                 </div>
-             )}
              <div className="flex items-center gap-3 px-2">
                  <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-xs font-bold text-slate-400 overflow-hidden">
                      {user.photoURL ? (
@@ -142,14 +168,27 @@ const App: React.FC = () => {
         </div>
       </div>
 
-      {/* Main Content */}
-      <div className="flex-1 p-6 overflow-hidden relative bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-blue-900/10 via-slate-950 to-slate-950">
-        {activeView === View.HOME && <HomeView onNavigate={setActiveView} />}
-        {activeView === View.CHAT && <ChatView />}
-        {activeView === View.VISION && <VisionView />}
-        {activeView === View.SPEECH && <SpeechView />}
-        {activeView === View.VIDEO && <VideoView />}
+      {/* MAIN CONTENT AREA */}
+      <div 
+        className="flex-1 relative overflow-hidden bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-blue-900/10 via-slate-950 to-slate-950"
+      >
+         {/* Key prop forces remount on tab switch to reset scroll */}
+         {activeView === View.HOME && <HomeView key="home" onNavigate={setActiveView} />}
+         {activeView === View.CHAT && <ChatView key="chat" />}
+         {activeView === View.VISION && <VisionView key="vision" />}
+         {activeView === View.SPEECH && <SpeechView key="speech" />}
+         {activeView === View.VIDEO && <VideoView key="video" />}
       </div>
+
+      {/* MOBILE BOTTOM NAV - FIXED BOTTOM */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-slate-950/95 backdrop-blur-xl border-t border-slate-800 flex justify-between px-2 pb-safe pt-1 z-50 shadow-2xl h-[calc(3.5rem+env(safe-area-inset-bottom))]">
+           <NavItem view={View.HOME} icon={Home} label="Home" mobile />
+           <NavItem view={View.CHAT} icon={MessageSquare} label="Chat" mobile />
+           <NavItem view={View.VISION} icon={Eye} label="Vision" mobile />
+           <NavItem view={View.SPEECH} icon={Mic} label="Speech" mobile />
+           <NavItem view={View.VIDEO} icon={VideoIcon} label="Veo" mobile />
+      </div>
+
     </div>
   );
 };

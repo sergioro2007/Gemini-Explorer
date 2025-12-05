@@ -20,10 +20,19 @@ export type User = any;
 // Initialize Firebase safely
 let auth: any;
 
-// Only attempt to initialize if an API key is present.
-// This prevents "auth/invalid-api-key" errors when the app is running without env vars.
-if (firebaseConfig && firebaseConfig.apiKey) {
+// Helper to validate API Key format (Basic check for Google API Keys)
+const isValidApiKey = (key: string | undefined): boolean => {
+    if (!key || typeof key !== 'string') return false;
+    const cleanKey = key.trim();
+    // Google API Keys typically start with "AIza" and are approx 39 chars long
+    return cleanKey.startsWith("AIza") && cleanKey.length > 20;
+};
+
+// Only attempt to initialize if an API key is present AND valid.
+// This prevents "auth/invalid-api-key" errors when the app is running with empty/malformed env vars.
+if (firebaseConfig && isValidApiKey(firebaseConfig.apiKey)) {
     try {
+        console.log("Initializing Firebase with Key:", firebaseConfig.apiKey.substring(0, 8) + "...");
         // Cast to any to bypass TypeScript resolution issues with firebase/app exports in some environments
         const safeApp = firebaseApp as any;
         // Check for existing apps to avoid duplicate initialization
@@ -33,9 +42,11 @@ if (firebaseConfig && firebaseConfig.apiKey) {
         console.error("Firebase initialization failed:", e);
     }
 } else {
-    // Config is missing. Auth will be undefined.
+    // Config is missing or invalid. Auth will be undefined.
     // The UI (LoginView) checks for this and shows a "Configuration Required" message.
-    console.debug("Firebase API Key missing. Auth service skipped.");
+    const key = firebaseConfig?.apiKey;
+    const keyStatus = !key ? "missing" : "invalid format";
+    console.warn(`Firebase Auth SKIPPED. API Key is ${keyStatus}. Value: '${key || ''}'`);
 }
 
 export const signIn = async (email: string, pass: string) => {

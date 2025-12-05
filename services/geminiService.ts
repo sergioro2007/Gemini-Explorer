@@ -1,9 +1,9 @@
-
 import { GoogleGenAI, Modality, Type } from "@google/genai";
 import { GroundingMetadata, ModelType } from "../types";
 
-// Initialize API Client
-// Note: API key is injected via process.env.API_KEY via Vite define
+// Declare process to avoid TS errors as per environment assumptions
+declare const process: any;
+
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 /**
@@ -13,7 +13,6 @@ const parseGeminiError = (error: any): Error => {
     console.error("Original Gemini Error:", error);
     let msg = error.message || "Unknown error occurred";
     
-    // Attempt to extract message from JSON string if present
     if (typeof msg === 'string' && msg.includes('{')) {
         try {
             const match = msg.match(/\{.*\}/);
@@ -53,7 +52,6 @@ export const generateChatMessage = async (
   let tools: any[] = [];
   let thinkingConfig: any = undefined;
 
-  // System Instruction with Date/Time Awareness
   const now = new Date();
   const dateTimeString = now.toLocaleString('en-US', {
     weekday: 'long',
@@ -67,13 +65,11 @@ export const generateChatMessage = async (
   
   const systemInstruction = `Current date and time: ${dateTimeString}. You have access to real-time tools. Use them when necessary to answer questions accurately.`;
 
-  // Configuration Logic
   if (config.useThinking) {
-    modelName = ModelType.PRO; // Thinking requires Pro
-    // Ensure thinking budget is valid for the model
+    modelName = ModelType.PRO; 
     thinkingConfig = { thinkingBudget: config.thinkingBudget || 1024 }; 
   } else if (config.useGrounding !== 'none') {
-    modelName = ModelType.FLASH; // Grounding works well with Flash
+    modelName = ModelType.FLASH; 
     if (config.useGrounding === 'search') {
       tools = [{ googleSearch: {} }];
     } else if (config.useGrounding === 'maps') {
@@ -82,7 +78,6 @@ export const generateChatMessage = async (
   }
   
   try {
-    // Construct full content history for multi-turn chat
     const contents = [
       ...history,
       { role: 'user', parts: [{ text: newMessage }] }
@@ -100,7 +95,6 @@ export const generateChatMessage = async (
 
     const text = response.text || "No text response generated.";
     
-    // Extract Grounding Metadata
     const groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks as any;
     
     let grounding: GroundingMetadata | undefined;
@@ -156,7 +150,7 @@ export const generateImage = async (prompt: string): Promise<string> => {
             config: {
                 numberOfImages: 1,
                 outputMimeType: 'image/jpeg',
-                aspectRatio: '1:1',
+                aspectRatio: '16:9',
             }
         });
         return response.generatedImages[0].image.imageBytes;
@@ -183,98 +177,7 @@ export const analyzeImage = async (base64Image: string, prompt: string): Promise
 }
 
 /**
- * Helper to run a specific Veo model generation
- */
-const attemptVeoGeneration = async (model: string, prompt: string, imageBase64?: string): Promise<string> => {
-    // Ensure API Key is clean
-    const apiKey = process.env.API_KEY?.trim();
-    if (!apiKey) throw new Error("API Key is missing or invalid.");
-
-    const veoAi = new GoogleGenAI({ apiKey: apiKey }); 
-    console.log(`Starting Veo generation with model: ${model}`);
-    
-    const payload: any = {
-        model: model,
-        prompt: prompt,
-        config: {
-            numberOfVideos: 1,
-            resolution: '720p', 
-            aspectRatio: '16:9'
-        }
-    };
-
-    // If an image is provided, parse and add it to the payload
-    if (imageBase64) {
-        // Extract raw base64 and mimeType from data URL
-        const matches = imageBase64.match(/^data:(.+);base64,(.+)$/);
-        if (matches && matches.length === 3) {
-             const mimeType = matches[1];
-             const data = matches[2];
-             payload.image = {
-                 imageBytes: data,
-                 mimeType: mimeType
-             };
-        } else {
-            console.warn("Invalid image format provided to Veo, proceeding with text only.");
-        }
-    }
-    
-    // Explicitly type operation as any to avoid 'unknown' assignment issues during polling
-    let operation: any = await veoAi.models.generateVideos(payload);
-
-    // Polling loop
-    let pollCount = 0;
-    const maxPolls = 60; // 10 mins
-    
-    while (!operation.done) {
-        pollCount++;
-        if (pollCount > maxPolls) {
-            throw new Error("Video generation timed out.");
-        }
-        
-        console.log(`Veo (${model}) in progress... (Attempt ${pollCount})`);
-        await new Promise(resolve => setTimeout(resolve, 10000)); 
-        
-        try {
-            operation = await veoAi.operations.getVideosOperation({ operation: operation });
-        } catch (pollError: any) {
-            console.warn("Transient polling error:", pollError);
-        }
-    }
-
-    if (operation.error) {
-        throw new Error(operation.error.message || JSON.stringify(operation.error));
-    }
-
-    const videoUri = operation.response?.generatedVideos?.[0]?.video?.uri;
-    if (!videoUri) throw new Error("No video URI found in response");
-
-    // Secure Fetch: Retrieve video bytes using API Key in Header
-    // We strictly use blob creation to hide the key from the video element source
-    try {
-        const response = await fetch(videoUri, {
-            headers: {
-                'x-goog-api-key': apiKey
-            }
-        });
-        
-        if (!response.ok) {
-             console.warn(`Header fetch failed: ${response.status} ${response.statusText}`);
-             throw new Error(`Failed to download video safely (Status: ${response.status})`);
-        }
-        
-        const arrayBuffer = await response.arrayBuffer();
-        const blob = new Blob([arrayBuffer], { type: 'video/mp4' });
-        return URL.createObjectURL(blob);
-    } catch (e: any) {
-        // We DO NOT fallback to signed URL parameters here to prevent API Key exposure in the DOM/URL.
-        console.error("Secure video retrieval failed.", e);
-        throw e;
-    }
-};
-
-/**
- * Handles Video Generation (Veo) with Multi-Model Fallback
+ * Handles Video Generation
  */
 export interface VideoResult {
     url: string;
@@ -283,58 +186,88 @@ export interface VideoResult {
     modelUsed: string;
 }
 
-export const generateVideo = async (prompt: string, durationPreference: '5s' | '10s' | '20s' = '5s', imageBase64?: string): Promise<VideoResult> => {
-    // Check for API Key selection (Only for AI Studio environment)
-    try {
-        const win = window as any;
-        if (win.aistudio && win.aistudio.hasSelectedApiKey && !await win.aistudio.hasSelectedApiKey()) {
-            await win.aistudio.openSelectKey();
-        }
-    } catch (e) {
-        console.warn("AIStudio Key Selection Check Failed:", e);
-    }
+export const generateVideo = async (
+    prompt: string, 
+    useVeo: boolean,
+    imageBase64?: string
+): Promise<VideoResult> => {
     
-    if (!process.env.API_KEY) {
-        throw new Error("API Key is missing. Please ensure you have selected a key.");
+    if (useVeo) {
+        try {
+            // NOTE: For Veo, we MUST use the key from the environment/dialog, not the pre-configured one.
+            const veoAi = new GoogleGenAI({ apiKey: process.env.API_KEY });
+            
+            const config = {
+                numberOfVideos: 1,
+                resolution: '720p',
+                aspectRatio: '16:9'
+            };
+            
+            let operation;
+
+            if (imageBase64) {
+                 // Clean base64 if needed
+                 const cleanBase64 = imageBase64.includes(',') ? imageBase64.split(',')[1] : imageBase64;
+                 operation = await veoAi.models.generateVideos({
+                    model: ModelType.VEO, // 'veo-3.1-fast-generate-preview'
+                    prompt: prompt,
+                    image: {
+                        imageBytes: cleanBase64,
+                        mimeType: 'image/png' 
+                    },
+                    config
+                });
+            } else {
+                operation = await veoAi.models.generateVideos({
+                    model: ModelType.VEO,
+                    prompt: prompt,
+                    config
+                });
+            }
+
+            // Poll for completion
+            while (!operation.done) {
+                await new Promise(resolve => setTimeout(resolve, 10000));
+                operation = await veoAi.operations.getVideosOperation({operation: operation});
+            }
+            
+            const video = operation.response?.generatedVideos?.[0]?.video;
+            if (!video || !video.uri) throw new Error("Video generation failed or returned no URI.");
+            
+            const downloadLink = video.uri;
+            const response = await fetch(`${downloadLink}&key=${process.env.API_KEY}`);
+            const blob = await response.blob();
+            const url = URL.createObjectURL(blob);
+            
+            return {
+                url,
+                contentType: 'video/mp4',
+                isFallback: false,
+                modelUsed: 'Veo 3.1 (Video)'
+            };
+
+        } catch (error: any) {
+             throw parseGeminiError(error);
+        }
     }
 
+    // Fallback: Low Cost Mode (Imagen 3)
     let finalPrompt = prompt;
-    if (durationPreference !== '5s') {
-        finalPrompt = `${prompt} (Create a video that is approximately ${durationPreference} long)`;
-    }
+    finalPrompt += ", cinematic shot, 8k resolution, photorealistic, highly detailed, dramatic lighting, movie still";
 
-    // Attempt 1: Veo Fast
-    try {
-        const url = await attemptVeoGeneration(ModelType.VEO, finalPrompt, imageBase64);
-        return { url, contentType: 'video/mp4', isFallback: false, modelUsed: 'Veo Fast' };
-    } catch (error: any) {
-        if (isQuotaError(error)) {
-            console.warn("Veo Fast quota exceeded. Trying Standard Veo...");
-        } else {
-            throw parseGeminiError(error);
-        }
-    }
+    console.log("Using Low-Cost Mode: Generating Cinematic Image instead of Video.");
 
-    // Attempt 2: Veo Standard (Fallback)
     try {
-        const url = await attemptVeoGeneration(ModelType.VEO_STD, finalPrompt, imageBase64);
-        return { url, contentType: 'video/mp4', isFallback: false, modelUsed: 'Veo Standard' };
-    } catch (error: any) {
-        if (isQuotaError(error)) {
-            console.warn("Veo Standard quota exceeded. Falling back to Image Generation...");
-        } else {
-            // If it wasn't a quota error, throw it (e.g. Safety filter)
-            throw parseGeminiError(error);
-        }
-    }
-
-    // Attempt 3: Imagen 3 (Final Fallback)
-    try {
-        // Fallback ignores the image input since generateImage currently is text-to-image only in this app
-        const imageBytes = await generateImage(finalPrompt + ", cinematic, photorealistic, 8k, video frame");
+        const imageBytes = await generateImage(finalPrompt);
         const imageUrl = `data:image/jpeg;base64,${imageBytes}`;
-        return { url: imageUrl, contentType: 'image/jpeg', isFallback: true, modelUsed: 'Imagen 3 (Fallback)' };
+        
+        return { 
+            url: imageUrl, 
+            contentType: 'image/jpeg', 
+            isFallback: true, 
+            modelUsed: 'Imagen 3 (Storyboard)' 
+        };
     } catch (error: any) {
-        throw new Error("All generation attempts failed (Video & Image quotas exceeded).");
+        throw parseGeminiError(error);
     }
 }

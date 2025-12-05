@@ -1,30 +1,37 @@
+/// <reference types="vite/client" />
 
-// Secure Configuration using Environment Variables
-// You must set these variables in your deployment environment (e.g., .env file or Cloud Run Env Vars)
-// Variables must be prefixed with VITE_ for Vite to expose them to the client.
+// Declare process for TypeScript (Vite define will replace process.env.API_KEY with the string literal)
+declare const process: any;
 
-const getEnv = (key: string) => {
-    // Try standard Vite injection
-    // @ts-ignore
-    if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env[key]) {
-        // @ts-ignore
-        return import.meta.env[key];
-    }
-    // Try process.env fallback (populated via vite define)
-    // @ts-ignore
-    if (typeof process !== 'undefined' && process.env && process.env[key]) {
-        // @ts-ignore
-        return process.env[key];
-    }
-    return undefined;
+// Configuration using environment variables
+// The API Key is injected by Vite's define plugin from VITE_GOOGLE_API_KEY in .env
+const ENV_KEY = process.env.API_KEY;
+
+// Fallback: Read from LocalStorage (manual config override if ever needed)
+const getStoredConfig = () => {
+    if (typeof window === 'undefined') return null;
+    try {
+        const item = window.localStorage.getItem('gemini_explorer_config');
+        return item ? JSON.parse(item) : null;
+    } catch (e) { return null; }
+};
+
+const stored = getStoredConfig();
+
+export const getStoredGeminiKey = () => stored?.geminiApiKey;
+
+// Export the key helper for the service layer
+export const getEnvGeminiKey = () => {
+    if (ENV_KEY) return ENV_KEY;
+    return getStoredGeminiKey();
 };
 
 export const firebaseConfig = {
-  apiKey: getEnv('VITE_FIREBASE_API_KEY'),
-  authDomain: getEnv('VITE_FIREBASE_AUTH_DOMAIN'),
-  projectId: getEnv('VITE_FIREBASE_PROJECT_ID'),
-  storageBucket: getEnv('VITE_FIREBASE_STORAGE_BUCKET'),
-  messagingSenderId: getEnv('VITE_FIREBASE_MESSAGING_SENDER_ID'),
-  appId: getEnv('VITE_FIREBASE_APP_ID'),
-  measurementId: getEnv('VITE_FIREBASE_MEASUREMENT_ID')
+  apiKey: ENV_KEY, 
+  authDomain: "gen-lang-client-0865075597.firebaseapp.com",
+  projectId: "gen-lang-client-0865075597",
+  storageBucket: "gen-lang-client-0865075597.firebasestorage.app",
+  messagingSenderId: "441309312094",
+  appId: "1:441309312094:web:09c1d6d95c440cd75eb0cf",
+  measurementId: "G-XWKVV74LSB"
 };

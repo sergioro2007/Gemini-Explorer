@@ -3,17 +3,14 @@ import React, { useState } from 'react';
 import { Lock, UserPlus, LogIn, AlertCircle } from 'lucide-react';
 import { signIn, signUp, signInWithGoogle } from '../services/authService';
 import { Button } from '../components/Button';
-import { firebaseConfig } from '../config';
 
 export const LoginView: React.FC = () => {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState<{message: string, code?: string} | null>(null);
+  const [error, setError] = useState<{message: string, code?: string, details?: string} | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-
-  const isConfigured = firebaseConfig.apiKey && firebaseConfig.apiKey !== "YOUR_API_KEY_HERE";
-
+  
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -27,6 +24,7 @@ export const LoginView: React.FC = () => {
         }
     } catch (err: any) {
         let msg = "An error occurred.";
+        if (err.message === "Firebase not configured") msg = "Authentication service is not configured.";
         if (err.code === 'auth/invalid-credential') msg = "Invalid email or password.";
         if (err.code === 'auth/email-already-in-use') msg = "Email already in use.";
         if (err.code === 'auth/weak-password') msg = "Password should be at least 6 characters.";
@@ -42,40 +40,27 @@ export const LoginView: React.FC = () => {
       try {
           await signInWithGoogle();
       } catch (err: any) {
-          console.error(err);
+          console.error("Sign In Error:", err);
           let msg = "Google Sign-In failed.";
+          let details = err.message;
           
-          // Specific help for common deployment errors
           if (err.code === 'auth/unauthorized-domain') {
               msg = `Domain unauthorized: ${window.location.hostname}`;
           } else if (err.code === 'auth/popup-closed-by-user') {
               msg = "Sign-in cancelled.";
+          } else if (err.code === 'auth/api-key-not-valid.-please-pass-a-valid-api-key.') {
+              msg = "API Key Invalid or Project Mismatch.";
+              details = "The API Key provided does not match the Firebase Project configuration, or is restricted (missing Identity Toolkit API).";
+          } else if (err.code === 'auth/operation-not-allowed') {
+              msg = "Google Sign-In not enabled.";
+              details = "Enable Google provider in Firebase Console > Authentication > Sign-in method.";
           }
           
-          setError({ message: msg, code: err.code });
+          setError({ message: msg, code: err.code, details: details });
       } finally {
           setIsLoading(false);
       }
   };
-
-  if (!isConfigured) {
-      return (
-          <div className="flex h-screen items-center justify-center bg-slate-950 text-white p-4">
-              <div className="max-w-md bg-slate-900 border border-red-500/50 rounded-xl p-8 text-center space-y-4">
-                  <AlertCircle size={48} className="text-red-500 mx-auto" />
-                  <h2 className="text-2xl font-bold">Configuration Required</h2>
-                  <p className="text-slate-400">
-                      You need to configure Firebase Authentication to use this app.
-                  </p>
-                  <p className="text-sm bg-slate-950 p-4 rounded text-left font-mono text-slate-300">
-                      1. Open `config.ts`<br/>
-                      2. Replace the placeholder `firebaseConfig`<br/>
-                      3. Redeploy
-                  </p>
-              </div>
-          </div>
-      );
-  }
 
   return (
     <div className="flex h-screen items-center justify-center bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-blue-900/20 via-slate-950 to-slate-950 p-4">
@@ -98,9 +83,14 @@ export const LoginView: React.FC = () => {
                     <div className="flex items-center gap-2 font-bold mb-1">
                          <AlertCircle size={16} /> Error:
                     </div>
-                    <div>{error.message}</div>
+                    <div className="font-semibold">{error.message}</div>
+                    {error.details && (
+                        <div className="mt-2 text-xs opacity-80 border-t border-red-500/30 pt-2">
+                            {error.details}
+                        </div>
+                    )}
                     {error.code && (
-                        <div className="mt-2 text-xs font-mono bg-black/30 p-2 rounded">
+                        <div className="mt-2 text-xs font-mono bg-black/30 p-2 rounded break-all">
                             Code: {error.code}
                             {error.code === 'auth/unauthorized-domain' && (
                                 <div className="mt-1 text-yellow-300">
@@ -184,13 +174,6 @@ export const LoginView: React.FC = () => {
                     {isLogin ? "Don't have an account? Sign up" : "Already have an account? Sign in"}
                 </button>
             </div>
-        </div>
-
-        {/* Debug Info Footer */}
-        <div className="absolute bottom-2 left-0 right-0 text-center">
-             <span className="text-[10px] text-slate-700 font-mono">
-                Env: {window.location.hostname} ({window.location.port || '80/443'})
-             </span>
         </div>
       </div>
     </div>

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
 import { View } from '../types';
 import { MessageSquare, Eye, Mic, Video, ArrowRight, Brain, Globe, Sparkles, Zap } from 'lucide-react';
 
@@ -7,11 +7,20 @@ interface HomeViewProps {
 }
 
 export const HomeView: React.FC<HomeViewProps> = ({ onNavigate }) => {
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Force scroll to top on mount
+  useEffect(() => {
+    if (scrollRef.current) {
+        scrollRef.current.scrollTop = 0;
+    }
+  }, []);
+
   const cards = [
     {
       id: View.CHAT,
       title: 'Chat & Reasoning',
-      description: 'Engage with Gemini 2.5/3.0 using advanced thinking budgets or connect to real-world data with Google Search & Maps.',
+      description: 'Gemini 2.5/3.0 with Thinking & Search.',
       icon: MessageSquare,
       color: 'bg-blue-600',
       subIcons: [Brain, Globe]
@@ -19,7 +28,7 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigate }) => {
     {
       id: View.VISION,
       title: 'Vision Studio',
-      description: 'Analyze images for deep insights or generate high-quality visuals using the Imagen 3 model.',
+      description: 'Analyze images or generate visuals.',
       icon: Eye,
       color: 'bg-indigo-600',
       subIcons: [Sparkles, Zap]
@@ -27,7 +36,7 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigate }) => {
     {
       id: View.SPEECH,
       title: 'Speech Lab',
-      description: 'Transform text into lifelike speech. Experiment with different voice personas and tonality.',
+      description: 'Lifelike TTS with voice personas.',
       icon: Mic,
       color: 'bg-emerald-600',
       subIcons: []
@@ -35,7 +44,7 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigate }) => {
     {
       id: View.VIDEO,
       title: 'Veo Video Gen',
-      description: 'Create cinematic 720p videos from simple text prompts using the state-of-the-art Veo model.',
+      description: 'Cinematic video generation model.',
       icon: Video,
       color: 'bg-pink-600',
       subIcons: []
@@ -43,63 +52,56 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigate }) => {
   ];
 
   return (
-    <div className="h-full overflow-y-auto p-2">
-      <div className="max-w-5xl mx-auto space-y-10 py-8">
+    <div ref={scrollRef} className="h-full w-full overflow-y-auto no-scrollbar">
+      <div className="max-w-5xl mx-auto space-y-3 px-3 md:px-6 pt-[calc(3rem+env(safe-area-inset-top)+0.75rem)] pb-[calc(4.5rem+env(safe-area-inset-bottom)+0.75rem)] md:py-6">
         
-        {/* Hero Section */}
-        <div className="text-center space-y-4">
-          <h1 className="text-4xl md:text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400">
-            What can you get here?
+        {/* Hero Section - Compact */}
+        <div className="text-center space-y-1 md:space-y-4 mb-2 md:mb-6">
+          <h1 className="text-xl md:text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400">
+            Gemini Explorer
           </h1>
-          <p className="text-lg text-slate-400 max-w-2xl mx-auto leading-relaxed">
-            Welcome to the Gemini Capabilities Explorer. This application is your playground to experience the latest features of the Google GenAI SDK.
+          <p className="text-[10px] md:text-lg text-slate-400 max-w-2xl mx-auto leading-relaxed">
+            Google GenAI SDK Features
           </p>
         </div>
 
-        {/* Feature Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Feature Grid - Dense for Mobile */}
+        <div className="grid grid-cols-2 gap-2 md:gap-6">
           {cards.map((card) => (
             <button
               key={card.id}
               onClick={() => onNavigate(card.id)}
-              className="group relative bg-slate-900 border border-slate-800 rounded-2xl p-6 hover:border-slate-600 transition-all duration-300 hover:shadow-2xl hover:shadow-slate-900/50 text-left flex flex-col h-full overflow-hidden"
+              className="group relative bg-slate-900 border border-slate-800 rounded-lg md:rounded-xl p-3 md:p-4 hover:border-slate-600 transition-all duration-300 hover:shadow-2xl hover:shadow-slate-900/50 text-left flex flex-col h-full overflow-hidden active:scale-[0.98]"
             >
-              <div className={`absolute top-0 right-0 p-32 opacity-5 rounded-full blur-3xl transition-transform duration-500 group-hover:scale-150 ${card.color}`}></div>
+              <div className={`absolute top-0 right-0 p-12 md:p-20 opacity-5 rounded-full blur-3xl transition-transform duration-500 group-hover:scale-150 ${card.color}`}></div>
               
               <div className="relative z-10 flex flex-col h-full">
-                <div className="flex items-start justify-between mb-4">
-                  <div className={`p-3 rounded-xl ${card.color} text-white shadow-lg`}>
-                    <card.icon size={24} />
+                <div className="flex items-center justify-between mb-1.5 md:mb-2">
+                  <div className={`p-1.5 md:p-2 rounded-lg ${card.color} text-white shadow-lg`}>
+                    <card.icon size={16} className="md:w-6 md:h-6" />
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex gap-1">
                     {card.subIcons.map((Icon, idx) => (
-                      <div key={idx} className="p-1.5 bg-slate-800 rounded-full text-slate-400 border border-slate-700">
-                        <Icon size={14} />
+                      <div key={idx} className="p-0.5 bg-slate-800 rounded-full text-slate-400 border border-slate-700">
+                        <Icon size={10} />
                       </div>
                     ))}
                   </div>
                 </div>
 
-                <h3 className="text-xl font-bold text-white mb-2 group-hover:text-blue-300 transition-colors">
+                <h3 className="text-xs md:text-xl font-bold text-white mb-0.5 group-hover:text-blue-300 transition-colors">
                   {card.title}
                 </h3>
-                <p className="text-slate-400 text-sm leading-relaxed mb-6 flex-1">
+                <p className="text-slate-400 text-[10px] md:text-sm leading-tight mb-2 flex-1">
                   {card.description}
                 </p>
 
-                <div className="flex items-center text-sm font-medium text-slate-300 group-hover:text-white transition-colors">
-                  Try it now <ArrowRight size={16} className="ml-2 group-hover:translate-x-1 transition-transform" />
+                <div className="flex items-center text-[9px] md:text-sm font-medium text-slate-300 group-hover:text-white transition-colors">
+                  Open <ArrowRight size={10} className="ml-1 group-hover:translate-x-1 transition-transform" />
                 </div>
               </div>
             </button>
           ))}
-        </div>
-
-        {/* Footer info */}
-        <div className="text-center pt-8 border-t border-slate-800/50">
-          <p className="text-xs text-slate-500">
-            Powered by <span className="text-slate-400 font-semibold">@google/genai</span> SDK • React 19 • Tailwind CSS
-          </p>
         </div>
       </div>
     </div>
